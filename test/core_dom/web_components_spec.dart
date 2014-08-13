@@ -13,6 +13,16 @@ registerElement(String name, prototype) {
 main() {
   describe('WebComponent support', () {
     TestBed _;
+    DivElement ngAppElement;
+    beforeEachModule((Module module) {
+      ngAppElement = new DivElement()..attributes['ng-app'] = '';
+      module.bind(DetachComponent);
+      document.body.append(ngAppElement);
+    });
+    afterEach(() {
+      ngAppElement.remove();
+      ngAppElement = null;
+    });
 
     /**
      * Returns the property [prop] as read through the JS interface.
@@ -38,6 +48,11 @@ main() {
       if (CustomElements != null) {
         CustomElements['upgradeAll'].apply([new js.JsObject.fromBrowserObject(_.rootElement)]);
       }
+    }
+    compile(html) {
+      ngAppElement.setInnerHtml(html, treeSanitizer: new NullTreeSanitizer());
+      _.compile(ngAppElement);
+      return ngAppElement.firstChild;
     }
 
     beforeEach((TestBed tb) {
@@ -89,5 +104,43 @@ main() {
 
       expect(_.rootScope.context['x']).toEqual(6);
     });
+
+    iit('should call attach/detach when component is added/removed from the dom',async((TestBed tb, Logger logger){
+      tb.rootScope.context['logger'] = logger;
+      tb.rootScope.context['content'] = "Eu sou a mosca";
+      Element element = compile('<detach>{{content}}</detach>');
+      var domElement = document.querySelector('detach');
+      expect(logger).toEqual(['constructor']);
+      expect(domElement).toBeNotNull();
+      tb.rootScope.apply();
+      expect(domElement.innerHtml).toEqual("Eu sou a mosca");
+      expect(logger).toEqual(['attach']);
+      domElement.remove();
+      expect(logger).toEqual(['detach']);
+    }));
   });
+}
+
+@Component(
+  selector: 'detach',
+  publishAs: 'comp'
+)
+class DetachComponent implements DetachAware, AttachAware {
+  Logger logger;
+  DetachComponent(this.logger){
+    logger.clear();
+    logger('constructor');
+  }
+
+  @override
+  void detach() {
+    logger.clear();
+    logger('detach');
+  }
+
+  void attach() {
+    logger.clear();
+    logger('attach');
+  }
+
 }
